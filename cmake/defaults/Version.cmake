@@ -1,0 +1,6 @@
+# Versioning information
+set(MAJOR_VERSION "0")
+set(MINOR_VERSION "0")
+set(PATCH_VERSION "1")
+
+math(EXPR PLUGIN_VERSION "${MAJOR_VERSION} * 10000 + ${MINOR_VERSION} * 100 + ${PATCH_VERSION}")
