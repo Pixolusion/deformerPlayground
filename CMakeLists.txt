@@ -32,6 +32,7 @@ include(CXXDefaults)
 set(INSTALL_DIR $ENV{USERPROFILE}/Documents/maya/${MAYA_VERSION})
 string(REPLACE "\\" "/" INSTALL_DIR $ENV{USERPROFILE}/Documents/maya/${MAYA_VERSION})
 set(PLUGIN_EXTENSION ".mll")
+set(MAYA_SCRIPT_DIR ${INSTALL_DIR}/scripts)
 set(MAYA_PLUGIN_DIR ${INSTALL_DIR}/plug-ins)
 set(MAYA_ICONS_DIR ${INSTALL_DIR}/prefs/icons)
 

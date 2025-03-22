@@ -1,0 +1,81 @@
+// This is the procedure to open a file browser to choose a cache file
+//
+global proc AEinflateDeformerONNXFileBrowser( string $fileNameAttr )
+{
+    // prepare filter and starting dir for file dialog
+    string $filter = "ONNX (*.onnx) ;; All Files (*.*)";
+
+    // choose a file to import
+    string $result[] = `fileDialog2
+            -returnFilter 1
+            -fileFilter $filter
+            -dialogStyle 2
+            -caption "Choose new ONNX model."
+            -fileMode 1
+            `;
+    if (size($result) == 0 || size($result[0]) == 0) {
+        // cancelled
+        return;
+    }
+
+    // set the file name attribute of the cache node
+    setAttr $fileNameAttr -type "string" $result[0];
+
+    // This will force an update to display the effects
+    // of the new cachefile.
+    //
+    currentTime `currentTime -q`;
+}
+
+// The following two procedures generate the UI for file name field
+//
+global proc AEinflateDeformerONNXFileNameNew ( string $fileNameAttr )
+{
+    setUITemplate -pushTemplate attributeEditorTemplate;
+
+    columnLayout -adjustableColumn true;
+
+        rowLayout -numberOfColumns 3;
+            text -label "ONNX Model" fileNameText;
+            textField fileNameField;
+            symbolButton -image "xgBrowse.png" browser;
+        setParent ..;
+    setParent ..;
+
+    setUITemplate -popTemplate;
+
+    AEinflateDeformerONNXFileNameReplace( $fileNameAttr );
+}
+
+global proc AEinflateDeformerONNXFileNameReplace ( string $fileNameAttr )
+{
+    string $fileName = `getAttr $fileNameAttr`;
+    string $nodeName = `plugNode $fileNameAttr`;
+
+    // file name attribute
+    //
+    connectControl -fileName fileNameField $fileNameAttr;
+    button -e -c ("AEinflateDeformerONNXFileBrowser " + $fileNameAttr) browser;
+}
+
+global proc AEinflateDeformerONNXTemplate(string $nodeName)
+{
+    editorTemplate -beginScrollLayout;
+        // Common Attributes
+
+        editorTemplate -beginLayout "Inflation" -collapse 0;
+
+        editorTemplate -addControl "inflate";
+        editorTemplate -addSeparator;
+        editorTemplate -callCustom AEinflateDeformerONNXFileNameNew AEinflateDeformerONNXFileNameReplace "onnxModelPath";
+
+
+        editorTemplate -endLayout;
+
+        AEdependNodeTemplate $nodeName;
+        // Dynamic Attributes
+        editorTemplate -addExtraControls;
+
+    editorTemplate -endScrollLayout;
+
+}
