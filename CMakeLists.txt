@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.14)
 
-project(deformerCompare)
+project(deformerPlayground)
 
 if (NOT CMAKE_SIZEOF_VOID_P EQUAL 8)
     if (WIN32)
