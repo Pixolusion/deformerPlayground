@@ -4,16 +4,13 @@
 #include <maya/MMessage.h>
 #include <maya/MNodeMessage.h>
 #include <maya/MPointArray.h>
+#include <maya/MVectorArray.h>
 
 #include "include/onnxDeformer.h"
 
 // Initialize ONNX Runtime session
 MTypeId InflateDeformerONNX::s_id(0x00123457);
 MCallbackId InflateDeformerONNX::s_attributeChangedCallbackId = 0;
-std::shared_ptr<Ort::Session> InflateDeformerONNX::s_session = nullptr;
-bool InflateDeformerONNX::s_isONNXInitialized = false;
-Ort::Env *InflateDeformerONNX::s_env = nullptr;
-std::string InflateDeformerONNX::s_loadedModelPath;
 MObject InflateDeformerONNX::s_inflate;
 MObject InflateDeformerONNX::s_onnxModelPath;
 
@@ -61,24 +58,24 @@ MStatus InflateDeformerONNX::initialize()
 // Load the ONNX model and initialize the InferenceSession
 void InflateDeformerONNX::initializeONNX()
 {
-    if (!s_env)
+    if (!m_env)
     {
-        s_env = new Ort::Env(ORT_LOGGING_LEVEL_WARNING, "ONNXMayaDeformer");
+        m_env = new Ort::Env(ORT_LOGGING_LEVEL_WARNING, "ONNXMayaDeformer");
     }
 
     MPlug modelPathPlug(thisMObject(), s_onnxModelPath);
     const std::string modelPath = modelPathPlug.asString().asChar();
     const std::wstring wmodelPath(modelPath.begin(), modelPath.end());
 
-    if (s_isONNXInitialized && s_loadedModelPath == modelPath)
+    if (m_isONNXInitialized && m_loadedModelPath == modelPath)
     {
         return;
     }
 
     // If a session already exists, release it before loading a new one
-    if (s_session)
+    if (m_session)
     {
-        s_session.reset();
+        m_session.reset();
     }
 
     Ort::SessionOptions sessionOptions;
@@ -88,23 +85,44 @@ void InflateDeformerONNX::initializeONNX()
     // Load the ONNX model
     try
     {
-        s_session = std::make_shared<Ort::Session>(*s_env, wmodelPath.c_str(), sessionOptions);
+        m_session = std::make_shared<Ort::Session>(*m_env, wmodelPath.c_str(), sessionOptions);
 
-        if (s_session->GetInputCount() == 0)
+        if (m_session->GetInputCount() == 0)
         {
             MGlobal::displayError("Failed to load ONNX model. No inputs found.");
-            s_session.reset(); // Ensure no invalid session remains
+            m_session.reset(); // Ensure no invalid session remains
+            return;
+        }
+
+        // Get the input tensor's shape dynamically
+        const Ort::TypeInfo& input_type_info = m_session->GetInputTypeInfo(0);  // Assuming the first input is the relevant one
+        std::vector<int64_t> input_shape = input_type_info.GetTensorTypeAndShapeInfo().GetShape();
+
+        // The last dimension is the number of features
+        int inputFeatures = static_cast<int>(input_shape.back());  // Get the feature size from the input shape
+
+        // If the number of features is valid, proceed
+        if (inputFeatures <= 0)
+        {
+            MGlobal::displayError("Invalid number of input features in ONNX model.");
+            m_session.reset(); // Ensure no invalid session remains
+            return;
+        }
+        else if (inputFeatures != m_inputFeatures)
+        {
+            MGlobal::displayError(("Input features to not match expecting " + std::to_string(m_inputFeatures) + " got " + std::to_string(inputFeatures)).c_str());
+            m_session.reset(); // Ensure no invalid session remains
             return;
         }
 
         // Update loaded model path
-        s_loadedModelPath = modelPath;
-        s_isONNXInitialized = true;
+        m_loadedModelPath = modelPath;
+        m_isONNXInitialized = true;
     }
     catch (const std::exception &e)
     {
         MGlobal::displayError(MString("Failed to load ONNX model: ") + (modelPath + ". " + e.what()).c_str());
-        s_session.reset(); // Ensure no invalid session remains
+        m_session.reset(); // Ensure no invalid session remains
     }
 }
 
@@ -121,7 +139,7 @@ MStatus InflateDeformerONNX::deform(MDataBlock &dataBlock, MItGeometry &iter, co
                                     unsigned int multiIndex)
 {
     // If the ONNX model is not initialized, exit early
-    if (!s_isONNXInitialized)
+    if (!m_isONNXInitialized)
     {
         return MS::kFailure;
     }
@@ -140,24 +158,33 @@ MStatus InflateDeformerONNX::deform(MDataBlock &dataBlock, MItGeometry &iter, co
     MPointArray positions;
     iter.allPositions(positions);
     auto num_vertices = positions.length();
+    MVectorArray normals;
+    normals.setLength(num_vertices);
+    iter.reset();
+    for (; iter.isDone(); iter.next())
+    {
+        normals.append(iter.normal());
+    }
 
-    // Pre-allocate memory for input data (4 floats per vertex: x, y, z, inflate)
-    const int input_features = 4;
-    std::vector<float> input_data(num_vertices * input_features);
+    // Pre-allocate memory for input data (7 floats per vertex: posx, posy, posz, normx, normy, normz, inflate)
+    std::vector<float> input_data(num_vertices * m_inputFeatures);
 
     // Populate input data for ONNX model with normalization
     for (unsigned int i = 0; i < num_vertices; ++i)
     {
-        input_data[i * input_features + 0] = static_cast<float>(positions[i].x);
-        input_data[i * input_features + 1] = static_cast<float>(positions[i].y);
-        input_data[i * input_features + 2] = static_cast<float>(positions[i].z);
-        input_data[i * input_features + 3] = inflateWeight;
+        input_data[i * m_inputFeatures + 0] = static_cast<float>(positions[i].x);
+        input_data[i * m_inputFeatures + 1] = static_cast<float>(positions[i].y);
+        input_data[i * m_inputFeatures + 2] = static_cast<float>(positions[i].z);
+        input_data[i * m_inputFeatures + 3] = static_cast<float>(normals[i].x);
+        input_data[i * m_inputFeatures + 4] = static_cast<float>(normals[i].y);
+        input_data[i * m_inputFeatures + 5] = static_cast<float>(normals[i].z);
+        input_data[i * m_inputFeatures + 6] = inflateWeight;
     }
 
     Ort::MemoryInfo memory_info = Ort::MemoryInfo::CreateCpu(OrtDeviceAllocator, OrtMemTypeDefault);
 
     // Prepare input tensor for ONNX
-    std::vector<int64_t> input_shape = {static_cast<int64_t>(num_vertices), input_features};
+    std::vector<int64_t> input_shape = {static_cast<int64_t>(num_vertices), m_inputFeatures};
     Ort::Value input_tensor = Ort::Value::CreateTensor<float>(memory_info, input_data.data(), input_data.size(),
                                                               input_shape.data(), input_shape.size());
 
@@ -176,7 +203,7 @@ MStatus InflateDeformerONNX::deform(MDataBlock &dataBlock, MItGeometry &iter, co
         const char *input_names[] = {"input_name"};
         const char *output_names[] = {"output_name"};
 
-        s_session->Run(run_options, input_names, &input_tensor, 1, output_names, &output_tensor, 1);
+        m_session->Run(run_options, input_names, &input_tensor, 1, output_names, &output_tensor, 1);
     }
     catch (const Ort::Exception &e)
     {

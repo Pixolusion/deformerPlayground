@@ -27,10 +27,11 @@ class InflateDeformerONNX : public MPxDeformerNode
     static MObject s_onnxModelPath;
 
     static MCallbackId s_attributeChangedCallbackId;
-    static std::shared_ptr<Ort::Session> s_session;
-    static bool s_isONNXInitialized;
-    static Ort::Env *s_env;
-    static std::string s_loadedModelPath;
+    std::shared_ptr<Ort::Session> m_session = nullptr;
+    bool m_isONNXInitialized = false;
+    Ort::Env *m_env = nullptr;
+    std::string m_loadedModelPath = "";
+    int m_inputFeatures = 7;
 
   protected:
     virtual ~InflateDeformerONNX();

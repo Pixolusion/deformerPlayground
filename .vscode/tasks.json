@@ -1,0 +1,41 @@
+{
+	"version": "2.0.0",
+	"tasks": [
+	  {
+		"label": "Train Mesh Deformation Model",
+		"type": "shell",
+        "command": "P:/Python/3.11/python",
+		"args": [
+		  "${workspaceFolder}/python/onnxDeformer/train_model.py",
+		  "${workspaceFolder}/data/training_data.pt",
+		  "${workspaceFolder}/data/delta_model_L1Loss.onnx"
+		],
+		"group": {
+		  "kind": "build",
+		  "isDefault": true
+		},
+		"problemMatcher": [],
+		"detail": "This task runs the Python script to train the model."
+	  },
+	  {
+		"label": "Visualise Model",
+		"type": "shell",
+        "command": "P:/Python/3.11/python",
+		"args": [
+		  "${workspaceFolder}/python/onnxDeformer/plot.py",
+		],
+		"problemMatcher": [],
+		"detail": "This task runs the Python script to train the model."
+	  },
+	  {
+		"label": "Generate training data",
+		"type": "shell",
+        "command": "mayapy",
+		"args": [
+		  "${workspaceFolder}/python/onnxDeformer/data_collection.py",
+		  "${workspaceFolder}/data/training_data.pt",
+		],
+		"detail": "This task runs a Mayapy process to generate training data."
+	  }
+	]
+  }

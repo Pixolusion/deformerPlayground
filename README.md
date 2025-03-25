@@ -15,6 +15,8 @@ Here, we simulate a typical ML team setup:
 - 🏗️ MLOps/ML Engineer – Trains and optimizes the deformation model. [python/train_model.py](python/train_model.py)
 - 🚀 Inference Application – Uses the trained model for real-time deformation in Maya. [onnxDeformer/onnxDeformer.cpp](onnxDeformer/onnxDeformer.cpp)
 
+![Training vs Validation](docs/images/trainingVsValidation.png)
+
 ##### Why This Project?
 - Demonstrates ML integration into DCC tools like Maya.
 - Showcases MLOps best practices for model training and deployment.
